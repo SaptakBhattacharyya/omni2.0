@@ -18,17 +18,22 @@ router.put('/profile', protect, updateUserProfile);
 router.post('/api-key', protect, generateApiKey);
 
 // Google Auth — initiate OAuth flow
-router.get(
-  '/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'], session: false })
-);
+router.get('/auth/google', (req, res, next) => {
+  if (!passport._strategies['google']) {
+    return res.status(503).json({ message: 'Google Sign-In is not configured on this server.' });
+  }
+  passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
+});
 
 // Google Auth — callback after Google redirects back
 router.get('/auth/google/callback', (req, res, next) => {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
+  if (!passport._strategies['google']) {
+    return res.redirect(`${frontendUrl}/login?error=Google+auth+not+configured`);
+  }
+
   passport.authenticate('google', { session: false }, async (err, user) => {
-    // Handle errors or missing user — redirect to frontend login with error
     if (err || !user) {
       const reason = encodeURIComponent(err ? err.message : 'Google authentication failed');
       return res.redirect(`${frontendUrl}/login?error=${reason}`);

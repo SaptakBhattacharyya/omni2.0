@@ -17,25 +17,43 @@ router.get('/profile', protect, getUserProfile);
 router.put('/profile', protect, updateUserProfile);
 router.post('/api-key', protect, generateApiKey);
 
-// Google Auth
-router.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
-
+// Google Auth — initiate OAuth flow
 router.get(
-  '/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login', session: false }),
-  (req, res) => {
-    const token = require('../utils/generateToken')(req.user._id);
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    // Redirect with token and user info
-    const userData = encodeURIComponent(JSON.stringify({
-      _id: req.user._id,
-      name: req.user.name,
-      email: req.user.email,
-      role: req.user.role,
-      token
-    }));
-    res.redirect(`${frontendUrl}/login?data=${userData}`);
-  }
+  '/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'], session: false })
 );
+
+// Google Auth — callback after Google redirects back
+router.get('/auth/google/callback', (req, res, next) => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+  passport.authenticate('google', { session: false }, async (err, user) => {
+    // Handle errors or missing user — redirect to frontend login with error
+    if (err || !user) {
+      const reason = encodeURIComponent(err ? err.message : 'Google authentication failed');
+      return res.redirect(`${frontendUrl}/login?error=${reason}`);
+    }
+
+    try {
+      const generateToken = require('../utils/generateToken');
+      const token = generateToken(user._id);
+
+      const userData = encodeURIComponent(JSON.stringify({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        retailerCategory: user.retailerCategory,
+        token,
+      }));
+
+      res.redirect(`${frontendUrl}/login?data=${userData}`);
+    } catch (tokenErr) {
+      console.error('Token generation failed:', tokenErr.message);
+      const reason = encodeURIComponent('Login succeeded but token generation failed');
+      res.redirect(`${frontendUrl}/login?error=${reason}`);
+    }
+  })(req, res, next);
+});
 
 module.exports = router;

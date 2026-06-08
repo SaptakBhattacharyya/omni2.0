@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const connectDB = require('./config/db.js');
 
 // ─── Import all route files
 const userRoutes = require('./routes/user.routes.js');
@@ -42,6 +43,19 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// ─── DB Connection Middleware ─────────────────────────────────────────────────
+// Runs before every route — critical for Vercel serverless cold-starts where
+// no persistent connection exists between invocations.
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('DB connection failed:', err.message);
+    res.status(503).json({ message: 'Database unavailable. Please try again.' });
+  }
+});
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/api/v1/health', (req, res) => {

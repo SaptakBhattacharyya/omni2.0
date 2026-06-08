@@ -2,12 +2,26 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const User = require('../models/user.model.js');
 
 module.exports = function (passport) {
+  // Guard: skip Google strategy if credentials aren't configured
+  // (prevents a crash on cold-start when env vars are missing)
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    console.warn('WARNING: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is not set. Google OAuth disabled.');
+    return;
+  }
+
+  // ── callbackURL MUST be absolute for Vercel serverless ──────────────────────
+  // A relative path like '/api/v1/...' doesn't resolve correctly in serverless.
+  // Set BACKEND_URL in your Vercel environment variables, e.g.:
+  //   https://omniretail-two.vercel.app
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+  const callbackURL = `${backendUrl}/api/v1/users/auth/google/callback`;
+
   passport.use(
     new GoogleStrategy(
       {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: '/api/v1/users/auth/google/callback',
+        callbackURL,
         proxy: true,
       },
       async (accessToken, refreshToken, profile, done) => {

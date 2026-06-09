@@ -23,10 +23,10 @@ app.use(helmet()); // Security Headers
 app.use(passport.initialize());
 
 const allowedOrigins = [
-  'https://omniretail-two.vercel.app',
+  process.env.FRONTEND_URL,
   'http://localhost:5173',
   'http://localhost:3000',
-];
+].filter(Boolean);
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {

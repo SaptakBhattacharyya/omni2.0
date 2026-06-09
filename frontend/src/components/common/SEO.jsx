@@ -3,7 +3,7 @@ import { Helmet } from 'react-helmet-async';
 const SEO = ({ title, description, keywords, image, url }) => {
   const siteTitle = 'OmniRetail - High-Fidelity Hybrid Retail Platform';
   const siteDescription = 'OmniRetail empowers retailers with real-time stock visibility, AI price negotiations, and seamless hybrid retail integration.';
-  const siteUrl = 'https://omniretail-two.vercel.app';
+  const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://omniretail.vercel.app';
   const siteLogo = '/favicon.jpg';
   
   const displayTitle = title ? `${title} | OmniRetail` : siteTitle;

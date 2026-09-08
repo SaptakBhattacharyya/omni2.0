@@ -45,8 +45,20 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// ─── Health Check ─────────────────────────────────────────────────────────────
+const checkHealth = (req, res) => {
+  const isDbReady = require('mongoose').connection.readyState === 1;
+  res.status(200).json({ 
+    status: 'success', 
+    message: 'SPY_HEALTH_CHECK_OK',
+    database: isDbReady ? 'connected' : 'disconnected'
+  });
+};
+app.get('/api/v1/health', checkHealth);
+app.get('/v1/health', checkHealth);
+
 // ─── DB Connection Middleware ─────────────────────────────────────────────────
-// Runs before every route — critical for Vercel serverless cold-starts where
+// Runs before every data route — critical for Vercel serverless cold-starts where
 // no persistent connection exists between invocations.
 app.use(async (req, res, next) => {
   try {
@@ -56,14 +68,6 @@ app.use(async (req, res, next) => {
     console.error('DB connection failed:', err.message);
     res.status(503).json({ message: 'Database unavailable. Please try again.' });
   }
-});
-
-// ─── Health Check ─────────────────────────────────────────────────────────────
-app.get('/api/v1/health', (req, res) => {
-  res.status(200).json({ status: 'success', message: 'SPY_HEALTH_CHECK_OK' });
-});
-app.get('/v1/health', (req, res) => {
-  res.status(200).json({ status: 'success', message: 'SPY_HEALTH_CHECK_OK' });
 });
 
 // ─── Routes ──────────────────────────────────────────────────────────────────

@@ -1,65 +1,98 @@
+/**
+ * store.controller.js
+ *
+ * WHAT IS THIS CONTROLLER?
+ * ------------------------
+ * Manages physical store locations and omni-channel store stock checks:
+ *   1. getNearbyStores → Geospatial query to find stores closest to given GPS coordinates.
+ *   2. getStoreStock   → Checks in-store availability and aisle location for a product.
+ *   3. seedStores      → Helper endpoint to populate initial store branches.
+ */
+
 const Store = require('../models/store.model.js');
 const Product = require('../models/product.model.js');
 
-// @desc  Get all stores or filter by proximity
-// @route GET /api/v1/stores/nearby
-exports.getNearbyStores = async (req, res) => {
+/**
+ * @desc    Get all stores or filter by geographic proximity (lat, lng, radius)
+ * @route   GET /api/v1/stores/nearby
+ * @access  Public
+ */
+exports.getNearbyStores = async (req, res, next) => {
   try {
     const { lat, lng, radius = 10 } = req.query;
-
     let query = {};
 
-    // If coordinates are provided, search within radius (km)
+    // If coordinates are provided, perform a MongoDB $near geospatial query
     if (lat && lng) {
       query.location = {
         $near: {
           $geometry: {
             type: 'Point',
+            // Coordinates ordered as [longitude, latitude]
             coordinates: [parseFloat(lng), parseFloat(lat)],
           },
-          $maxDistance: radius * 1000, // Convert km to meters
+          // Convert radius in kilometers to meters
+          $maxDistance: parseFloat(radius) * 1000,
         },
       };
     }
 
     const stores = await Store.find(query);
-    res.json(stores);
+    return res.json(stores);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('[Nearby Stores Error]:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while fetching stores',
+      error: error.message,
+    });
   }
 };
 
-// @desc  Get stock status for a product at a specific store
-// @route GET /api/v1/stores/:storeId/stock/:productId
-exports.getStoreStock = async (req, res) => {
+/**
+ * @desc    Get stock status for a product at a specific physical store
+ * @route   GET /api/v1/stores/:storeId/stock/:productId
+ * @access  Public
+ */
+exports.getStoreStock = async (req, res, next) => {
   try {
-    const { storeId, productId } = req.params;
+    const { productId } = req.params;
 
     const product = await Product.findById(productId);
-    if (!product) return res.status(404).json({ message: 'Product not found' });
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
 
-    // In a real multi-warehouse app, we'd have a 'Stock' model linking Product and Store.
-    // For this version, we'll simulate the store-specific stock based on the product's global stock.
-    const statuses = ['In Stock', 'Low Stock', 'Out of Stock'];
-    const randomStatus = product.stockQuantity > 5 ? 'In Stock' : (product.stockQuantity > 0 ? 'Low Stock' : 'Out of Stock');
-    
-    res.json({
-      status: randomStatus,
+    // Determine stock status based on inventory quantity
+    const status =
+      product.stockQuantity > 5
+        ? 'In Stock'
+        : product.stockQuantity > 0
+        ? 'Low Stock'
+        : 'Out of Stock';
+
+    return res.json({
+      status,
       quantity: Math.min(product.stockQuantity, Math.floor(Math.random() * 10) + 1),
-      aisle: `A-${Math.floor(Math.random() * 20)}-${Math.floor(Math.random() * 5)}`,
+      aisle: `A-${Math.floor(Math.random() * 20) + 1}-${Math.floor(Math.random() * 5) + 1}`,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('[Store Stock Error]:', error);
+    return res.status(500).json({ success: false, message: 'Server error while checking store stock' });
   }
 };
 
-// @desc  Seed initial stores if none exist
-// @route POST /api/v1/stores/seed
-exports.seedStores = async (req, res) => {
+/**
+ * @desc    Seed initial store locations if collection is empty
+ * @route   POST /api/v1/stores/seed
+ * @access  Public
+ */
+exports.seedStores = async (req, res, next) => {
   try {
     const count = await Store.countDocuments();
-    if (count > 0) return res.status(400).json({ message: 'Stores already exist' });
+    if (count > 0) {
+      return res.status(400).json({ success: false, message: 'Stores already exist in the database' });
+    }
 
     const initialStores = [
       {
@@ -68,6 +101,7 @@ exports.seedStores = async (req, res) => {
         city: 'Bengaluru',
         location: { coordinates: [77.5946, 12.9716] },
         phone: '+91 98765 43210',
+        isMainBranch: true,
       },
       {
         name: 'OmniRetail Suburban',
@@ -75,6 +109,7 @@ exports.seedStores = async (req, res) => {
         city: 'Bengaluru',
         location: { coordinates: [77.7500, 12.9698] },
         phone: '+91 98765 43211',
+        isMainBranch: false,
       },
       {
         name: 'OmniRetail Electronic City',
@@ -82,12 +117,14 @@ exports.seedStores = async (req, res) => {
         city: 'Bengaluru',
         location: { coordinates: [77.6650, 12.8399] },
         phone: '+91 98765 43212',
-      }
+        isMainBranch: false,
+      },
     ];
 
     await Store.insertMany(initialStores);
-    res.status(201).json({ message: 'Stores seeded successfully' });
+    return res.status(201).json({ success: true, message: 'Stores seeded successfully' });
   } catch (error) {
-    res.status(500).json({ message: 'Seed failed', error: error.message });
+    console.error('[Seed Stores Error]:', error);
+    return res.status(500).json({ success: false, message: 'Seed failed', error: error.message });
   }
 };

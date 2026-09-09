@@ -1,14 +1,36 @@
+/**
+ * seed.js
+ *
+ * WHAT IS THIS SCRIPT?
+ * --------------------
+ * This is a standalone database seeder utility script.
+ * It resets the MongoDB database and populates it with rich demo data:
+ *   - 3 Physical Store branches (Bangalore locations with GPS coordinates)
+ *   - 4 Sample Products (Electronics, Fashion, Grocery)
+ *   - 3 Customers with spending and review history
+ *   - 3 Orders in various fulfillment states
+ *   - 2 Active/Accepted Negotiation sessions with full chat histories
+ *   - 2 Default Test Users (Customer & Retailer)
+ *
+ * HOW TO RUN:
+ * Open your terminal in the backend/ directory and run:
+ *   node seed.js
+ */
+
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-const User = require('./src/models/user.model');
-const Store = require('./src/models/store.model');
-const Product = require('./src/models/product.model');
-const Order = require('./src/models/order.model');
-const Negotiation = require('./src/models/negotiation.model');
-const Customer = require('./src/models/customer.model');
+const User = require('./src/models/user.model.js');
+const Store = require('./src/models/store.model.js');
+const Product = require('./src/models/product.model.js');
+const Order = require('./src/models/order.model.js');
+const Negotiation = require('./src/models/negotiation.model.js');
+const Customer = require('./src/models/customer.model.js');
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/omniretail';
+// Fallback to the development cluster if MONGO_URI is not set in .env
+const FALLBACK_MONGO_URI =
+  'mongodb+srv://tbhattacharyya1_db_user:omni1234@cluster0.p2l08us.mongodb.net/omniretail?appName=Cluster0';
+const MONGO_URI = process.env.MONGO_URI || FALLBACK_MONGO_URI;
 
 const dummyStores = [
   {
@@ -18,10 +40,10 @@ const dummyStores = [
     phone: '+91 98765 43210',
     location: {
       type: 'Point',
-      coordinates: [77.5946, 12.9716] // [lng, lat] - Bangalore
+      coordinates: [77.5946, 12.9716], // [longitude, latitude] - Bangalore
     },
     openingHours: '10:00 AM - 9:00 PM',
-    isMainBranch: true
+    isMainBranch: true,
   },
   {
     name: 'Fashion Avenue',
@@ -30,10 +52,10 @@ const dummyStores = [
     phone: '+91 98765 43211',
     location: {
       type: 'Point',
-      coordinates: [77.5896, 12.9766]
+      coordinates: [77.5896, 12.9766],
     },
     openingHours: '9:30 AM - 8:30 PM',
-    isMainBranch: false
+    isMainBranch: false,
   },
   {
     name: 'Grocery Plus',
@@ -42,11 +64,11 @@ const dummyStores = [
     phone: '+91 98765 43212',
     location: {
       type: 'Point',
-      coordinates: [77.6374, 12.9719]
+      coordinates: [77.6374, 12.9719],
     },
     openingHours: '8:00 AM - 10:00 PM',
-    isMainBranch: false
-  }
+    isMainBranch: false,
+  },
 ];
 
 const dummyProducts = [
@@ -63,10 +85,10 @@ const dummyProducts = [
     stockQuantity: 45,
     isSurplus: false,
     images: [
-      { url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=300&fit=crop', isPrimary: true }
+      { url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=300&fit=crop', isPrimary: true },
     ],
     specifications: new Map([['Brand', 'SoundMaster'], ['Color', 'Black'], ['Wireless', 'Yes']]),
-    variants: { sizes: [], colors: ['Black', 'White', 'Blue'] }
+    variants: { sizes: [], colors: ['Black', 'White', 'Blue'] },
   },
   {
     sku: 'PROD002',
@@ -81,14 +103,14 @@ const dummyProducts = [
     stockQuantity: 30,
     isSurplus: false,
     images: [
-      { url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop', isPrimary: true }
+      { url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop', isPrimary: true },
     ],
     specifications: new Map([['Brand', 'TechWatch'], ['Waterproof', 'Yes']]),
-    variants: { sizes: [], colors: ['Black', 'Silver'] }
+    variants: { sizes: [], colors: ['Black', 'Silver'] },
   },
   {
     sku: 'PROD003',
-    name: 'Men\'s Casual Shirt',
+    name: "Men's Casual Shirt",
     description: 'Comfortable cotton casual shirt',
     basePrice: 999,
     minAcceptablePrice: 799,
@@ -99,10 +121,10 @@ const dummyProducts = [
     stockQuantity: 100,
     isSurplus: true,
     images: [
-      { url: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=300&fit=crop', isPrimary: true }
+      { url: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=300&fit=crop', isPrimary: true },
     ],
     specifications: new Map([['Material', 'Cotton'], ['Fit', 'Regular']]),
-    variants: { sizes: ['S', 'M', 'L', 'XL'], colors: ['Blue', 'White', 'Green'] }
+    variants: { sizes: ['S', 'M', 'L', 'XL'], colors: ['Blue', 'White', 'Green'] },
   },
   {
     sku: 'PROD004',
@@ -117,11 +139,11 @@ const dummyProducts = [
     stockQuantity: 80,
     isSurplus: false,
     images: [
-      { url: 'https://images.unsplash.com/photo-1617098581197-28e0a6b0032e?w=400&h=300&fit=crop', isPrimary: true }
+      { url: 'https://images.unsplash.com/photo-1617098581197-28e0a6b0032e?w=400&h=300&fit=crop', isPrimary: true },
     ],
     specifications: new Map([['Type', 'Basmati'], ['Organic', 'Yes']]),
-    variants: { sizes: ['5kg', '10kg'], colors: [] }
-  }
+    variants: { sizes: ['5kg', '10kg'], colors: [] },
+  },
 ];
 
 const dummyCustomers = [
@@ -133,8 +155,8 @@ const dummyCustomers = [
     initials: 'JD',
     feedback: [
       { text: 'Great products!', rating: 5, time: '2024-05-15' },
-      { text: 'Fast delivery', rating: 4, time: '2024-05-20' }
-    ]
+      { text: 'Fast delivery', rating: 4, time: '2024-05-20' },
+    ],
   },
   {
     name: 'Jane Smith',
@@ -143,8 +165,8 @@ const dummyCustomers = [
     status: 'Active',
     initials: 'JS',
     feedback: [
-      { text: 'Good experience', rating: 4, time: '2024-05-18' }
-    ]
+      { text: 'Good experience', rating: 4, time: '2024-05-18' },
+    ],
   },
   {
     name: 'Robert Johnson',
@@ -152,8 +174,8 @@ const dummyCustomers = [
     totalSpend: 0,
     status: 'Inactive',
     initials: 'RJ',
-    feedback: []
-  }
+    feedback: [],
+  },
 ];
 
 const dummyOrders = [
@@ -163,9 +185,7 @@ const dummyOrders = [
     initials: 'JD',
     total: 2999,
     status: 'Delivered',
-    items: [
-      { name: 'Wireless Headphones', qty: 1, price: 2999 }
-    ]
+    items: [{ name: 'Wireless Headphones', qty: 1, price: 2999 }],
   },
   {
     orderId: 'ORD-002',
@@ -173,9 +193,7 @@ const dummyOrders = [
     initials: 'JS',
     total: 4999,
     status: 'Shipped',
-    items: [
-      { name: 'Smart Watch', qty: 1, price: 4999 }
-    ]
+    items: [{ name: 'Smart Watch', qty: 1, price: 4999 }],
   },
   {
     orderId: 'ORD-003',
@@ -183,10 +201,8 @@ const dummyOrders = [
     initials: 'JD',
     total: 999,
     status: 'Processing',
-    items: [
-      { name: 'Men\'s Casual Shirt', qty: 1, price: 999 }
-    ]
-  }
+    items: [{ name: "Men's Casual Shirt", qty: 1, price: 999 }],
+  },
 ];
 
 const dummyNegotiations = [
@@ -203,14 +219,14 @@ const dummyNegotiations = [
     messages: [
       { sender: 'user', content: 'Hi, can I get this for 2500?', offer: 2500 },
       { sender: 'bot', content: 'Thanks for your offer! I can do 2700.', offer: 2700 },
-      { sender: 'user', content: 'How about 2699?', offer: 2699 }
+      { sender: 'user', content: 'How about 2699?', offer: 2699 },
     ],
     roundsTotal: 3,
     roundsUsed: 2,
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
   },
   {
-    productName: 'Men\'s Casual Shirt',
+    productName: "Men's Casual Shirt",
     productImage: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=300&fit=crop',
     productSku: 'PROD003',
     basePrice: 999,
@@ -222,11 +238,11 @@ const dummyNegotiations = [
     messages: [
       { sender: 'user', content: 'Is 800 possible?', offer: 800 },
       { sender: 'bot', content: 'Sure! 850 is the best I can do.', offer: 850 },
-      { sender: 'user', content: 'Okay, accepted!', offer: 850 }
+      { sender: 'user', content: 'Okay, accepted!', offer: 850 },
     ],
     roundsTotal: 3,
-    roundsUsed: 3
-  }
+    roundsUsed: 3,
+  },
 ];
 
 async function seedDatabase() {
@@ -235,7 +251,7 @@ async function seedDatabase() {
     await mongoose.connect(MONGO_URI);
     console.log('✅ Connected to database');
 
-    console.log('🗑️ Clearing existing data...');
+    console.log('🗑️  Clearing existing data...');
     await User.deleteMany({});
     await Store.deleteMany({});
     await Product.deleteMany({});
@@ -269,22 +285,25 @@ async function seedDatabase() {
         name: 'Test Customer',
         email: 'customer@test.com',
         password: 'test123',
-        role: 'customer'
+        role: 'customer',
       },
       {
         name: 'Test Retailer',
         email: 'retailer@test.com',
         password: 'test123',
         role: 'retailer',
-        retailerCategory: 'Electronics'
-      }
+        retailerCategory: 'Electronics',
+      },
     ]);
     console.log(`✅ Created ${users.length} test users`);
 
-    console.log('\n🎉 Database seeded successfully!');
-    console.log('\n📝 Test credentials:');
-    console.log('   Customer: customer@test.com / test123');
-    console.log('   Retailer: retailer@test.com / test123');
+    console.log('\n====================================================');
+    console.log('🎉 Database seeded successfully!');
+    console.log('====================================================');
+    console.log('📝 Test Credentials for Login:');
+    console.log('   👤 Customer : customer@test.com / test123');
+    console.log('   🏪 Retailer : retailer@test.com / test123');
+    console.log('====================================================\n');
 
     process.exit(0);
   } catch (error) {

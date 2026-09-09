@@ -1,90 +1,114 @@
+/**
+ * app.js
+ *
+ * WHAT IS THIS FILE?
+ * ------------------
+ * This file configures the Express application instance (`app`).
+ * Think of `app.js` as the pipeline setup:
+ *   1. It attaches security and utility middlewares (Helmet, CORS, JSON parsers).
+ *   2. It initializes authentication providers (Passport.js).
+ *   3. It ensures database connectivity on each invocation (serverless-friendly).
+ *   4. It connects our master API routes (`/api/v1` and `/v1`).
+ *   5. It attaches the 404 Not Found and Global Error Handler middlewares at the very end.
+ *
+ * Notice: We do NOT call `app.listen()` here! Listening on a network port is done in
+ * `index.js`. Separating `app.js` from `index.js` allows us to run unit tests without
+ * binding to a live network port, and allows Vercel serverless deployments to import `app` directly.
+ */
+
 const express = require('express');
 const cors = require('cors');
-const connectDB = require('./config/db.js');
-
-// ─── Import all route files
-const userRoutes = require('./routes/user.routes.js');
-const dashboardRoutes = require('./routes/dashboard.routes.js');
-const negotiationRoutes = require('./routes/negotiation.routes.js');
-const productRoutes = require('./routes/product.routes.js');
-const orderRoutes = require('./routes/order.routes.js');
-const customerRoutes = require('./routes/customer.routes.js');
-const storeRoutes = require('./routes/store.routes.js');
-const passport = require('passport');
 const helmet = require('helmet');
+const passport = require('passport');
 
-// ─── Passport Config ────────────────────────────────────────────────────────
-require('./config/passport')(passport);
+const connectDB = require('./config/db.js');
+const apiRoutes = require('./routes/index.js');
+const { notFound, errorHandler } = require('./middlewares/error.middleware.js');
 
+// ─── 1. Initialize Passport Configuration ─────────────────────────────────────
+require('./config/passport.js')(passport);
+
+// ─── 2. Create Express App Instance ───────────────────────────────────────────
 const app = express();
 
-// ─── Middleware ───────────────────────────────────────────────────────────────
-app.use(helmet()); // Security Headers
+// ─── 3. Global Middlewares ───────────────────────────────────────────────────
+
+// Helmet helps secure Express apps by setting various HTTP response headers
+app.use(helmet());
+
+// Initialize Passport for authentication strategies (like Google OAuth)
 app.use(passport.initialize());
 
+// Configure Cross-Origin Resource Sharing (CORS)
+// Allows our React frontend (running on a different port/domain) to communicate with this backend
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
   'http://localhost:3000',
 ].filter(Boolean);
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      // For development, allow all origins (only use in production if needed!)
-      callback(null, true);
-    }
-  },
-  credentials: true,
-}));
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // In development or if origin is in whitelist, allow request
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        // Fallback for flexible development
+        callback(null, true);
+      }
+    },
+    credentials: true,
+  })
+);
+
+// Lightweight request logging middleware for easy console debugging during development
 app.use((req, res, next) => {
-  console.log(`[DEBUG] ${req.method} ${req.url}`);
+  console.log(`[HTTP Request] ${req.method} ${req.originalUrl}`);
   next();
 });
+
+// Body parsers: parse incoming JSON bodies and form submissions
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// ─── Health Check ─────────────────────────────────────────────────────────────
-const checkHealth = (req, res) => {
-  const isDbReady = require('mongoose').connection.readyState === 1;
-  res.status(200).json({ 
-    status: 'success', 
-    message: 'SPY_HEALTH_CHECK_OK',
-    database: isDbReady ? 'connected' : 'disconnected'
-  });
-};
-app.get('/api/v1/health', checkHealth);
-app.get('/v1/health', checkHealth);
-
-// ─── DB Connection Middleware ─────────────────────────────────────────────────
-// Runs before every data route — critical for Vercel serverless cold-starts where
-// no persistent connection exists between invocations.
+// ─── 4. Database Connection Middleware ────────────────────────────────────────
+// Runs before handling API routes.
+// Critical for serverless platforms (e.g. Vercel cold-starts) to ensure
+// MongoDB is ready before attempting queries.
 app.use(async (req, res, next) => {
   try {
     await connectDB();
     next();
   } catch (err) {
-    console.error('DB connection failed:', err.message);
-    res.status(503).json({ message: 'Database unavailable. Please try again.' });
+    console.error('[DB Middleware Error]:', err.message);
+    res.status(503).json({
+      success: false,
+      message: 'Database connection failed. Please try again shortly.',
+    });
   }
 });
 
-// ─── Routes ──────────────────────────────────────────────────────────────────
-app.use('/api/v1/users', userRoutes);
-app.use('/v1/users', userRoutes);
-app.use('/api/v1/dashboard', dashboardRoutes);
-app.use('/v1/dashboard', dashboardRoutes);
-app.use('/api/v1/negotiations', negotiationRoutes);
-app.use('/v1/negotiations', negotiationRoutes);
-app.use('/api/v1/products', productRoutes);
-app.use('/v1/products', productRoutes);
-app.use('/api/v1/orders', orderRoutes);
-app.use('/v1/orders', orderRoutes);
-app.use('/api/v1/customers', customerRoutes);
-app.use('/v1/customers', customerRoutes);
-app.use('/api/v1/stores', storeRoutes);
-app.use('/v1/stores', storeRoutes);
+// ─── 5. Mount API Routes ─────────────────────────────────────────────────────
+// Mount all routes under both `/api/v1` (standard) and `/v1` (short alias)
+app.use('/api/v1', apiRoutes);
+app.use('/v1', apiRoutes);
+
+// Root route welcome message for visitors landing on http://localhost:5000/
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Welcome to OmniRetail API',
+    healthCheck: '/api/v1/health',
+    version: '1.0.0',
+  });
+});
+
+// ─── 6. Centralized Error Handling Middlewares ─────────────────────────────────
+// Any request that did not match an existing route falls through to `notFound`
+app.use(notFound);
+
+// Catch-all error handler for any exceptions passed via next(err)
+app.use(errorHandler);
 
 module.exports = app;
-

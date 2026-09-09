@@ -1,80 +1,139 @@
+/**
+ * product.controller.js
+ *
+ * WHAT IS THIS CONTROLLER?
+ * ------------------------
+ * Manages product inventory and catalog items in OmniRetail:
+ *   1. getProducts    → Fetches products with category and name search filtering.
+ *   2. getProductById → Fetches details of a single product.
+ *   3. createProduct  → Retailer creates a single new product.
+ *   4. updateProduct  → Retailer updates an existing product.
+ *   5. bulkImport     → Batch import multiple products simultaneously.
+ */
+
 const Product = require('../models/product.model.js');
 
-// @desc  Get all products
-// @route GET /api/v1/products
-exports.getProducts = async (req, res) => {
+/**
+ * @desc    Get all products (with optional category and search filters)
+ * @route   GET /api/v1/products
+ * @access  Private
+ */
+exports.getProducts = async (req, res, next) => {
   try {
     const { category, search } = req.query;
+
+    // Build filter criteria
     const query = {};
-    if (category) query.storeCategory = category;
-    if (search) query.name = { $regex: search, $options: 'i' };
+    if (category) {
+      query.storeCategory = category;
+    }
+    if (search) {
+      query.name = { $regex: search, $options: 'i' };
+    }
+
     const products = await Product.find(query).sort({ createdAt: -1 });
-    res.json(products);
+    return res.json(products);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('[Get Products Error]:', error);
+    return res.status(500).json({ success: false, message: 'Server error while fetching products' });
   }
 };
 
-// @desc  Get product by ID
-// @route GET /api/v1/products/:id
-exports.getProductById = async (req, res) => {
+/**
+ * @desc    Get a single product by ID
+ * @route   GET /api/v1/products/:id
+ * @access  Private
+ */
+exports.getProductById = async (req, res, next) => {
   try {
     const product = await Product.findById(req.params.id);
-    if (!product) return res.status(404).json({ message: 'Product not found' });
-    res.json(product);
+
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    return res.json(product);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ success: false, message: 'Server error while fetching product' });
   }
 };
 
-// @desc  Create product
-// @route POST /api/v1/products
-exports.createProduct = async (req, res) => {
+/**
+ * @desc    Create a new product
+ * @route   POST /api/v1/products
+ * @access  Private (Retailer only)
+ */
+exports.createProduct = async (req, res, next) => {
   try {
     const product = await Product.create(req.body);
-    res.status(201).json(product);
+    return res.status(201).json(product);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// @desc  Update product
-// @route PUT /api/v1/products/:id
-exports.updateProduct = async (req, res) => {
+/**
+ * @desc    Update an existing product
+ * @route   PUT /api/v1/products/:id
+ * @access  Private (Retailer only)
+ */
+exports.updateProduct = async (req, res, next) => {
   try {
-    const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!product) return res.status(404).json({ message: 'Product not found' });
-    res.json(product);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
 
-// @desc  Bulk import products
-// @route POST /api/v1/products/import
-// @access Private
-exports.bulkImport = async (req, res) => {
-  try {
-    const products = req.body.products;
-    if (!Array.isArray(products)) {
-      return res.status(400).json({ message: 'Invalid data format. Expected an array of products.' });
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    const result = await Product.insertMany(products, { ordered: false });
-    res.status(201).json({
-      message: `${result.length} products imported successfully`,
-      count: result.length
-    });
+    return res.json(product);
   } catch (error) {
-    // If some succeeded but others failed (e.g. duplicate SKU)
-    if (error.insertedDocs) {
-      return res.status(207).json({
-        message: 'Partial import successful',
-        count: error.insertedDocs.length,
-        error: error.message
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Bulk import an array of products
+ * @route   POST /api/v1/products/import
+ * @access  Private (Retailer only)
+ */
+exports.bulkImport = async (req, res, next) => {
+  try {
+    const { products } = req.body;
+
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid data format: Expected a non-empty array of products.',
       });
     }
-    res.status(500).json({ message: 'Import failed', error: error.message });
+
+    // ordered: false allows valid documents to be inserted even if some fail due to duplicate SKU
+    const result = await Product.insertMany(products, { ordered: false });
+
+    return res.status(201).json({
+      success: true,
+      message: `${result.length} products imported successfully`,
+      count: result.length,
+    });
+  } catch (error) {
+    // If some documents succeeded but others failed (e.g., duplicate SKU)
+    if (error.insertedDocs && error.insertedDocs.length > 0) {
+      return res.status(207).json({
+        success: true,
+        message: 'Partial import completed',
+        count: error.insertedDocs.length,
+        error: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: 'Bulk import failed',
+      error: error.message,
+    });
   }
 };
-

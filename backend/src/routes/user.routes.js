@@ -1,64 +1,51 @@
+/**
+ * user.routes.js
+ *
+ * WHAT IS A ROUTE FILE IN MVC?
+ * ----------------------------
+ * The Route file is the dispatcher / table-of-contents for URLs.
+ * It maps each HTTP method and URL path to its matching Controller function.
+ *
+ * It is also where we attach route-specific middlewares (like `protect` for authentication).
+ */
+
 const express = require('express');
+const router = express.Router();
+
 const {
   registerUser,
   loginUser,
   getUserProfile,
-  generateApiKey,
   updateUserProfile,
+  generateApiKey,
+  googleAuth,
+  googleAuthCallback,
 } = require('../controllers/user.controller.js');
+
 const { protect } = require('../middlewares/auth.middleware.js');
-const passport = require('passport');
 
-const router = express.Router();
-
+// ─── Public Authentication Routes ─────────────────────────────────────────────
+// POST /api/v1/users/register - Register a new customer or retailer
 router.post('/register', registerUser);
+
+// POST /api/v1/users/login - Authenticate user & get JWT token
 router.post('/login', loginUser);
+
+// ─── Protected User Profile Routes ────────────────────────────────────────────
+// GET /api/v1/users/profile - Get current logged-in user profile
 router.get('/profile', protect, getUserProfile);
+
+// PUT /api/v1/users/profile - Update user profile information
 router.put('/profile', protect, updateUserProfile);
+
+// POST /api/v1/users/api-key - Generate API Key for retailer automated integrations
 router.post('/api-key', protect, generateApiKey);
 
-// Google Auth — initiate OAuth flow
-router.get('/auth/google', (req, res, next) => {
-  if (!passport._strategies['google']) {
-    return res.status(503).json({ message: 'Google Sign-In is not configured on this server.' });
-  }
-  passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
-});
+// ─── Google OAuth Routes ──────────────────────────────────────────────────────
+// GET /api/v1/users/auth/google - Initiate Google login consent flow
+router.get('/auth/google', googleAuth);
 
-// Google Auth — callback after Google redirects back
-router.get('/auth/google/callback', (req, res, next) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-
-  if (!passport._strategies['google']) {
-    return res.redirect(`${frontendUrl}/login?error=Google+auth+not+configured`);
-  }
-
-  passport.authenticate('google', { session: false }, async (err, user) => {
-    if (err || !user) {
-      const reason = encodeURIComponent(err ? err.message : 'Google authentication failed');
-      return res.redirect(`${frontendUrl}/login?error=${reason}`);
-    }
-
-    try {
-      const generateToken = require('../utils/generateToken');
-      const token = generateToken(user._id);
-
-      const userData = encodeURIComponent(JSON.stringify({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        retailerCategory: user.retailerCategory,
-        token,
-      }));
-
-      res.redirect(`${frontendUrl}/login?data=${userData}`);
-    } catch (tokenErr) {
-      console.error('Token generation failed:', tokenErr.message);
-      const reason = encodeURIComponent('Login succeeded but token generation failed');
-      res.redirect(`${frontendUrl}/login?error=${reason}`);
-    }
-  })(req, res, next);
-});
+// GET /api/v1/users/auth/google/callback - Callback route Google redirects to after login
+router.get('/auth/google/callback', googleAuthCallback);
 
 module.exports = router;

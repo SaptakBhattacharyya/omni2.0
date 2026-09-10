@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { useSignUp } from '@clerk/clerk-react';
+import { useSignUp, useClerk } from '@clerk/clerk-react';
 import { setCredentials } from '../../store/slices/authSlice';
 import authApi from '../../api/authApi';
 import { getStoreCategories } from '../../api/productsApi';
@@ -11,10 +11,13 @@ const hasClerkKey = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 // Sub-component for Clerk Google OAuth on Register
 const ClerkGoogleRegisterButton = ({ role, storeCategory, onError }) => {
   const { signUp, isLoaded } = useSignUp();
+  const { signOut } = useClerk();
 
   const handleClerkSignup = async () => {
     if (!isLoaded) return;
     try {
+      // Sign out any existing Clerk session first
+      await signOut();
       // Store role & category so SSOCallback page can pass them to the backend
       sessionStorage.setItem('clerk_pending_role', role);
       if (role === 'retailer' && storeCategory) {

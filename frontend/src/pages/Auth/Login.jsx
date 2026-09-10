@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { useSignIn } from '@clerk/clerk-react';
+import { useSignIn, useClerk } from '@clerk/clerk-react';
 import { setCredentials } from '../../store/slices/authSlice';
 import authApi from '../../api/authApi';
 import SEO from '../../components/common/SEO';
@@ -11,10 +11,13 @@ const hasClerkKey = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 // Sub-component for Clerk Google OAuth (only rendered when Clerk key is configured)
 const ClerkGoogleButton = ({ role, onError }) => {
   const { signIn, isLoaded } = useSignIn();
+  const { signOut } = useClerk();
 
   const handleClerkGoogle = async () => {
     if (!isLoaded) return;
     try {
+      // Sign out any existing Clerk session first to avoid "session exists" error
+      await signOut();
       // Store role so SSOCallback page knows what role to sync
       sessionStorage.setItem('clerk_pending_role', role);
       await signIn.authenticateWithRedirect({

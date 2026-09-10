@@ -40,33 +40,57 @@ module.exports = function (passport) {
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         callbackURL,
         proxy: true,
+        passReqToCallback: true,
       },
-      async (accessToken, refreshToken, profile, done) => {
+      async (req, accessToken, refreshToken, profile, done) => {
         try {
           const email = profile.emails && profile.emails[0] ? profile.emails[0].value : null;
+          const avatar = profile.photos && profile.photos[0] ? profile.photos[0].value : null;
 
           if (!email) {
             return done(new Error('No email address found in Google profile'), null);
+          }
+
+          // Check if OAuth state contains a preferred role (e.g. retailer or customer)
+          let requestedRole = 'customer';
+          if (req && req.query && req.query.state) {
+            try {
+              const parsedState = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
+              if (parsedState.role && ['customer', 'retailer'].includes(parsedState.role)) {
+                requestedRole = parsedState.role;
+              }
+            } catch {
+              // fallback to 'customer'
+            }
           }
 
           // Check if a user with this email already exists in our database
           let user = await User.findOne({ email });
 
           if (user) {
+            let modified = false;
             // If the user registered earlier with email/password, link their Google ID
             if (!user.googleId) {
               user.googleId = profile.id;
+              modified = true;
+            }
+            if (!user.avatar && avatar) {
+              user.avatar = avatar;
+              modified = true;
+            }
+            if (modified) {
               await user.save();
             }
             return done(null, user);
           }
 
-          // If user doesn't exist, create a new customer account
+          // If user doesn't exist, create a new user account with selected role
           user = await User.create({
             googleId: profile.id,
             name: profile.displayName || 'Google User',
             email: email,
-            role: 'customer', // Default role for OAuth signups
+            avatar: avatar,
+            role: requestedRole,
           });
 
           return done(null, user);

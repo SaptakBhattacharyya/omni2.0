@@ -234,13 +234,42 @@ exports.generateApiKey = async (req, res, next) => {
  * @access  Public
  */
 exports.googleAuth = (req, res, next) => {
-  if (!passport._strategies || !passport._strategies['google']) {
-    return res.status(503).json({
-      success: false,
-      message: 'Google Sign-In is not configured on this server.',
-    });
+  // Determine frontend URL from query or referer to handle multi-environment redirects (localhost, Vercel preview, production)
+  let frontendOrigin = null;
+  if (req.query.origin) {
+    try {
+      frontendOrigin = decodeURIComponent(req.query.origin);
+    } catch {
+      frontendOrigin = req.query.origin;
+    }
+  } else if (req.headers.referer) {
+    try {
+      frontendOrigin = new URL(req.headers.referer).origin;
+    } catch {
+      frontendOrigin = null;
+    }
   }
-  passport.authenticate('google', { scope: ['profile', 'email'], session: false })(req, res, next);
+
+  const frontendUrl = frontendOrigin || process.env.FRONTEND_URL || 'http://localhost:5173';
+
+  if (!passport._strategies || !passport._strategies['google']) {
+    return res.redirect(
+      `${frontendUrl}/login?error=${encodeURIComponent('Google Sign-In is not configured on this server.')}`
+    );
+  }
+
+  // Encode origin and requested role into the OAuth state parameter so Google passes it back to the callback
+  const statePayload = {
+    origin: frontendUrl,
+    role: req.query.role || 'customer',
+  };
+  const state = Buffer.from(JSON.stringify(statePayload)).toString('base64');
+
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    session: false,
+    state,
+  })(req, res, next);
 };
 
 /**
@@ -249,10 +278,24 @@ exports.googleAuth = (req, res, next) => {
  * @access  Public
  */
 exports.googleAuthCallback = (req, res, next) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+  // Decode originating frontend URL from OAuth state parameter if available
+  if (req.query.state) {
+    try {
+      const parsedState = JSON.parse(Buffer.from(req.query.state, 'base64').toString());
+      if (parsedState.origin) {
+        frontendUrl = parsedState.origin;
+      }
+    } catch (e) {
+      console.warn('[Passport Google] Failed to decode OAuth state parameter:', e.message);
+    }
+  }
 
   if (!passport._strategies || !passport._strategies['google']) {
-    return res.redirect(`${frontendUrl}/login?error=Google+auth+not+configured`);
+    return res.redirect(
+      `${frontendUrl}/login?error=${encodeURIComponent('Google Sign-In is not configured on this server.')}`
+    );
   }
 
   passport.authenticate('google', { session: false }, async (err, user) => {
@@ -272,6 +315,7 @@ exports.googleAuthCallback = (req, res, next) => {
           name: user.name,
           email: user.email,
           role: user.role,
+          avatar: user.avatar,
           retailerCategory: user.retailerCategory,
           token,
         })

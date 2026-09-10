@@ -50,11 +50,15 @@ const userSchema = new mongoose.Schema(
       enum: ['customer', 'retailer'],
       default: 'customer',
     },
+    avatar: {
+      type: String,
+      default: null,
+    },
     retailerCategory: {
       type: String,
-      // Only required if the user has the 'retailer' role
+      // Only required if the user registered via email/password as a retailer
       required: function () {
-        return this.role === 'retailer';
+        return this.role === 'retailer' && !this.googleId;
       },
     },
     apiKey: {

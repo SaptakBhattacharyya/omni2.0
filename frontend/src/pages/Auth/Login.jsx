@@ -20,7 +20,11 @@ const Login = () => {
     // Check if redirected from Google Auth
     const params = new URLSearchParams(location.search);
     const dataStr = params.get('data');
-    if (dataStr) {
+    const errorParam = params.get('error');
+
+    if (errorParam) {
+      setError(decodeURIComponent(errorParam));
+    } else if (dataStr) {
       try {
         const data = JSON.parse(decodeURIComponent(dataStr));
         dispatch(setCredentials({ user: data, token: data.token }));
@@ -32,13 +36,11 @@ const Login = () => {
   }, [location, dispatch, navigate]);
 
   const handleGoogleLogin = () => {
-    // Detect if we are on localhost or production
-    const isLocal = window.location.hostname === 'localhost';
-    const backendUrl = isLocal 
-      ? 'http://localhost:5000' 
-      : window.location.origin; // On Vercel, the backend is usually at the same domain or handled by proxy
-    
-    window.location.href = `${backendUrl}/api/v1/users/auth/google`;
+    // Use configured API base URL (e.g. https://omni2-0.vercel.app/api/v1 or http://localhost:5000/api/v1)
+    const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+    const cleanBase = apiBase.replace(/\/+$/, '');
+    const origin = encodeURIComponent(window.location.origin);
+    window.location.href = `${cleanBase}/users/auth/google?origin=${origin}&role=${role}`;
   };
 
   const handleSubmit = async (e) => {

@@ -33,9 +33,9 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      // Password is only required if the user did NOT register via Google OAuth
+      // Password is only required if the user did NOT register via Google OAuth or Clerk
       required: function () {
-        return !this.googleId;
+        return !this.googleId && !this.clerkId;
       },
       minlength: [6, 'Password must be at least 6 characters long'],
       select: false, // Prevents password from being returned in standard DB queries for security
@@ -44,6 +44,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       unique: true,
       sparse: true, // Allows null/missing values for users who registered with email & password
+    },
+    clerkId: {
+      type: String,
+      unique: true,
+      sparse: true, // Unique ID from Clerk authentication
     },
     role: {
       type: String,
@@ -58,7 +63,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       // Only required if the user registered via email/password as a retailer
       required: function () {
-        return this.role === 'retailer' && !this.googleId;
+        return this.role === 'retailer' && !this.googleId && !this.clerkId;
       },
     },
     apiKey: {

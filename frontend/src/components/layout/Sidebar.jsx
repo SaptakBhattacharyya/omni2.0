@@ -1,6 +1,27 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import { useClerk } from '@clerk/clerk-react';
 import { logout } from '../../store/slices/authSlice';
+
+const hasClerkKey = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+
+const ClerkLogoutButton = ({ onLogout }) => {
+  const clerk = useClerk();
+  return (
+    <button
+      onClick={async () => {
+        try {
+          await clerk.signOut();
+        } catch {}
+        onLogout();
+      }}
+      className="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900/50 transition-all duration-200 rounded-lg w-full text-left active:scale-95"
+    >
+      <span className="material-symbols-outlined">logout</span>
+      <span>Log Out</span>
+    </button>
+  );
+};
 
 const Sidebar = () => {
   const location = useLocation();
@@ -81,13 +102,17 @@ const Sidebar = () => {
           <span className="material-symbols-outlined" style={location.pathname === '/support' ? { fontVariationSettings: "'FILL' 1" } : {}}>help</span>
           <span>Support</span>
         </Link>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900/50 transition-all duration-200 rounded-lg w-full text-left active:scale-95"
-        >
-          <span className="material-symbols-outlined">logout</span>
-          <span>Log Out</span>
-        </button>
+        {hasClerkKey ? (
+          <ClerkLogoutButton onLogout={handleLogout} />
+        ) : (
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-900/50 transition-all duration-200 rounded-lg w-full text-left active:scale-95"
+          >
+            <span className="material-symbols-outlined">logout</span>
+            <span>Log Out</span>
+          </button>
+        )}
       </div>
     </nav>
   );

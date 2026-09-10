@@ -329,3 +329,73 @@ exports.googleAuthCallback = (req, res, next) => {
     }
   })(req, res, next);
 };
+
+/**
+ * @desc    Synchronize Clerk authenticated user with MongoDB
+ * @route   POST /api/v1/users/clerk-sync
+ * @access  Public
+ */
+exports.clerkSync = async (req, res, next) => {
+  try {
+    const { clerkId, email, name, avatar, role, retailerCategory } = req.body;
+
+    if (!clerkId || !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Clerk ID and email are required for synchronization',
+      });
+    }
+
+    // Step 1: Find user by clerkId or email
+    let user = await User.findOne({
+      $or: [{ clerkId }, { email: email.toLowerCase() }],
+    });
+
+    if (user) {
+      let modified = false;
+      if (!user.clerkId) {
+        user.clerkId = clerkId;
+        modified = true;
+      }
+      if (!user.avatar && avatar) {
+        user.avatar = avatar;
+        modified = true;
+      }
+      if (modified) {
+        await user.save();
+      }
+    } else {
+      // Step 2: Create new user document in MongoDB
+      user = await User.create({
+        clerkId,
+        name: name || 'OmniRetail User',
+        email: email.toLowerCase(),
+        avatar: avatar || null,
+        role: role && ['customer', 'retailer'].includes(role) ? role : 'customer',
+        retailerCategory: role === 'retailer' ? retailerCategory : undefined,
+      });
+    }
+
+    // Step 3: Generate our backend JWT token
+    const token = generateToken(user._id);
+
+    return res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      avatar: user.avatar,
+      retailerCategory: user.retailerCategory,
+      apiKeyCreatedAt: user.apiKeyCreatedAt,
+      hasApiKey: !!user.apiKey,
+      token,
+    });
+  } catch (error) {
+    console.error('[Clerk Sync Error]:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Server error during Clerk synchronization',
+    });
+  }
+};
+

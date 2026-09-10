@@ -79,6 +79,20 @@ export const updateProfile = async (userData) => {
 };
 
 
+/**
+ * clerkSync
+ *
+ * Sends the Clerk authenticated user information to the backend to
+ * find or create the MongoDB user and retrieve our app's JWT token.
+ *
+ * @param {Object} userData - Example: { clerkId, email, name, avatar, role, retailerCategory }
+ * @returns The user data + token from MongoDB backend
+ */
+export const clerkSync = async (userData) => {
+  return apiClient.post('/users/clerk-sync', userData);
+};
+
+
 // Bundle all the functions together so you can also do:
 //   import authApi from './authApi';
 //   authApi.login(...)
@@ -88,6 +102,7 @@ const authApi = {
   getProfile,
   generateApiKey,
   updateProfile,
+  clerkSync,
 };
 
 export default authApi;

@@ -20,6 +20,7 @@ const {
   generateApiKey,
   googleAuth,
   googleAuthCallback,
+  clerkSync,
 } = require('../controllers/user.controller.js');
 
 const { protect } = require('../middlewares/auth.middleware.js');
@@ -30,6 +31,9 @@ router.post('/register', registerUser);
 
 // POST /api/v1/users/login - Authenticate user & get JWT token
 router.post('/login', loginUser);
+
+// POST /api/v1/users/clerk-sync - Synchronize Clerk user with MongoDB and get JWT token
+router.post('/clerk-sync', clerkSync);
 
 // ─── Protected User Profile Routes ────────────────────────────────────────────
 // GET /api/v1/users/profile - Get current logged-in user profile

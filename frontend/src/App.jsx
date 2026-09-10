@@ -1,6 +1,9 @@
+import { useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import { logout } from './store/slices/authSlice';
+import { useDispatch, useSelector } from 'react-redux';
+import { useUser } from '@clerk/clerk-react';
+import { setCredentials, logout } from './store/slices/authSlice';
+import authApi from './api/authApi';
 import Login from './pages/Auth/Login';
 import Register from './pages/Auth/Register';
 import SSOCallback from './pages/Auth/SSOCallback';
@@ -21,6 +24,47 @@ import './index.css';
 
 const hasClerkKey = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 
+// Background sync component: when Clerk is signed in, ensures backend MongoDB has the user & Redux has the JWT
+const ClerkAuthSync = () => {
+  const { user: clerkUser, isSignedIn, isLoaded } = useUser();
+  const { isAuthenticated } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
+  const syncingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !clerkUser || isAuthenticated || syncingRef.current) return;
+
+    syncingRef.current = true;
+    const pendingRole = sessionStorage.getItem('clerk_pending_role') || 'customer';
+    const pendingCategory = sessionStorage.getItem('clerk_pending_category') || undefined;
+    sessionStorage.removeItem('clerk_pending_role');
+    sessionStorage.removeItem('clerk_pending_category');
+
+    const payload = {
+      clerkId: clerkUser.id,
+      email: clerkUser.primaryEmailAddress?.emailAddress,
+      name: clerkUser.fullName || clerkUser.firstName || 'OmniRetail User',
+      avatar: clerkUser.imageUrl,
+      role: pendingRole,
+      retailerCategory: pendingRole === 'retailer' ? pendingCategory : undefined,
+    };
+
+    authApi
+      .clerkSync(payload)
+      .then((data) => {
+        dispatch(setCredentials({ user: data, token: data.token }));
+      })
+      .catch((err) => {
+        console.error('[ClerkAuthSync] clerkSync failed:', err);
+      })
+      .finally(() => {
+        syncingRef.current = false;
+      });
+  }, [isLoaded, isSignedIn, clerkUser, isAuthenticated, dispatch]);
+
+  return null;
+};
+
 // Dashboard Layout Wrapper
 const DashboardLayout = ({ children }) => (
   <div className="flex min-h-screen bg-[#131315]">
@@ -38,6 +82,7 @@ const DashboardLayout = ({ children }) => (
 function App() {
   return (
     <Router>
+      {hasClerkKey && <ClerkAuthSync />}
       <Routes>
         {/* Landing Page */}
         <Route path="/" element={<Landing />} />

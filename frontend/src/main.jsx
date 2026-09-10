@@ -25,6 +25,13 @@ createRoot(document.getElementById('root')).render(
               signUpUrl="/register"
               signInFallbackRedirectUrl="/dashboard"
               signUpFallbackRedirectUrl="/dashboard"
+              allowedRedirectOrigins={[
+                'https://omni2-0-ymx3.vercel.app',
+                'https://omni2-0-ymx3-git-main-saptak-bhattacharyyas-projects.vercel.app',
+                'https://omni2-0.vercel.app',
+                typeof window !== 'undefined' ? window.location.origin : '',
+                /https:\/\/.*\.vercel\.app/,
+              ]}
               appearance={{
                 baseTheme: dark,
                 variables: {

@@ -1,8 +1,9 @@
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import { logout } from './store/slices/authSlice';
 import Login from './pages/Auth/Login';
 import Register from './pages/Auth/Register';
+import SSOCallback from './pages/Auth/SSOCallback';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
@@ -17,6 +18,8 @@ import Settings from './pages/Settings';
 import Support from './pages/Support';
 import Landing from './pages/Landing';
 import './index.css';
+
+const hasClerkKey = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 
 // Dashboard Layout Wrapper
 const DashboardLayout = ({ children }) => (
@@ -42,6 +45,9 @@ function App() {
         {/* Auth Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+
+        {/* Clerk SSO Callback — handles Google OAuth redirect */}
+        {hasClerkKey && <Route path="/sso-callback" element={<SSOCallback />} />}
         
         {/* Protected Dashboard Route */}
         <Route 

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { useSignIn, useUser } from '@clerk/clerk-react';
+import { useSignIn } from '@clerk/clerk-react';
 import { setCredentials } from '../../store/slices/authSlice';
 import authApi from '../../api/authApi';
 import SEO from '../../components/common/SEO';
@@ -9,42 +9,18 @@ import SEO from '../../components/common/SEO';
 const hasClerkKey = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 
 // Sub-component for Clerk Google OAuth (only rendered when Clerk key is configured)
-const ClerkGoogleButton = ({ role, onError, onSuccess }) => {
+const ClerkGoogleButton = ({ role, onError }) => {
   const { signIn, isLoaded } = useSignIn();
-  const { user: clerkUser, isSignedIn } = useUser();
-  const [syncing, setSyncing] = useState(false);
-
-  useEffect(() => {
-    if (isSignedIn && clerkUser) {
-      setSyncing(true);
-      const payload = {
-        clerkId: clerkUser.id,
-        email: clerkUser.primaryEmailAddress?.emailAddress,
-        name: clerkUser.fullName || clerkUser.firstName || 'OmniRetail User',
-        avatar: clerkUser.imageUrl,
-        role: role,
-      };
-
-      authApi.clerkSync(payload)
-        .then((data) => {
-          onSuccess(data);
-        })
-        .catch((err) => {
-          onError(err.message || 'Failed to sync account with backend');
-        })
-        .finally(() => {
-          setSyncing(false);
-        });
-    }
-  }, [isSignedIn, clerkUser]);
 
   const handleClerkGoogle = async () => {
     if (!isLoaded) return;
     try {
+      // Store role so SSOCallback page knows what role to sync
+      sessionStorage.setItem('clerk_pending_role', role);
       await signIn.authenticateWithRedirect({
         strategy: 'oauth_google',
-        redirectUrl: `${window.location.origin}/login`,
-        redirectUrlComplete: `${window.location.origin}/login`,
+        redirectUrl: `${window.location.origin}/sso-callback`,
+        redirectUrlComplete: `${window.location.origin}/sso-callback`,
       });
     } catch (err) {
       onError(err.errors?.[0]?.message || err.message || 'Google Sign-In failed');
@@ -55,8 +31,7 @@ const ClerkGoogleButton = ({ role, onError, onSuccess }) => {
     <button
       type="button"
       onClick={handleClerkGoogle}
-      disabled={syncing}
-      className="w-full flex items-center justify-center gap-3 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all mb-6 group outline-none disabled:opacity-60"
+      className="w-full flex items-center justify-center gap-3 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all mb-6 group outline-none"
     >
       <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
         <path
@@ -76,12 +51,11 @@ const ClerkGoogleButton = ({ role, onError, onSuccess }) => {
           d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
         />
       </svg>
-      <span className="font-inter text-sm font-semibold text-white">
-        {syncing ? 'Signing in with Clerk...' : 'Continue with Google'}
-      </span>
+      <span className="font-inter text-sm font-semibold text-white">Continue with Google</span>
     </button>
   );
 };
+
 
 const Login = () => {
   const navigate = useNavigate();
@@ -129,7 +103,7 @@ const Login = () => {
     try {
       const data = await authApi.login(form);
       dispatch(setCredentials({ user: data, token: data.token }));
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Failed to login. Please check your credentials.');
     } finally {
@@ -256,10 +230,6 @@ const Login = () => {
               <ClerkGoogleButton
                 role={role}
                 onError={(msg) => setError(msg)}
-                onSuccess={(data) => {
-                  dispatch(setCredentials({ user: data, token: data.token }));
-                  navigate('/');
-                }}
               />
             ) : (
               <button

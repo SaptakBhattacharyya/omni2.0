@@ -21,6 +21,10 @@ createRoot(document.getElementById('root')).render(
           {PUBLISHABLE_KEY ? (
             <ClerkProvider
               publishableKey={PUBLISHABLE_KEY}
+              signInUrl="/login"
+              signUpUrl="/register"
+              signInFallbackRedirectUrl="/dashboard"
+              signUpFallbackRedirectUrl="/dashboard"
               appearance={{
                 baseTheme: dark,
                 variables: {
